@@ -11,4 +11,5 @@ wheels/
 
 *.env
 *.parquet
-.archive
+/.archive
+/checkpoints
