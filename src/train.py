@@ -92,8 +92,8 @@ def plot_loss_curves(loss_history: dict, save_path: str = 'loss_curves.png',
 
 def train(date_: dt.date,
           save_dir: str = 'checkpoints',
-          batch_size: int = 64,
-          num_workers: int = 4,
+          batch_size: int = 512,
+          num_workers: int = 1,
           max_epochs: int = 10,
           learning_rate: float = 1e-4,
           early_stopping_patience: int = 3):
