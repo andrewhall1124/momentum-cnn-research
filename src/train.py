@@ -96,7 +96,8 @@ def train(date_: dt.date,
           num_workers: int = 1,
           max_epochs: int = 10,
           learning_rate: float = 1e-4,
-          early_stopping_patience: int = 3):
+          early_stopping_patience: int = 1,
+          logging: bool = True):
     """
     Train the Returns1DCNN model.
 
@@ -110,10 +111,10 @@ def train(date_: dt.date,
         early_stopping_patience: Number of epochs to wait for improvement before stopping
     """
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Using device: {device}")
-    print(f"Batch size: {batch_size}, Num workers: {num_workers}")
-    print(f"Max epochs: {max_epochs}, Learning rate: {learning_rate}")
-    print(f"Early stopping patience: {early_stopping_patience}")
+    
+    if logging:
+        print(f"Using device: {device}")
+
 
     # Create save directory
     Path(save_dir).mkdir(parents=True, exist_ok=True)
@@ -121,9 +122,7 @@ def train(date_: dt.date,
     train_start, train_end = date_ - dt.timedelta(days=5 * 365), date_ - dt.timedelta(days=91)
     val_start, val_end = date_ - dt.timedelta(days=90), date_
 
-    print(f"Loading training data: {train_start} to {train_end}")
     train_dataset = DailyReturnsDataset().load(start=train_start, end=train_end)
-    print(f"Loading validation data: {val_start} to {val_end}")
     val_dataset = DailyReturnsDataset().load(start=val_start, end=val_end)
                          
     train_loader = DataLoader(
@@ -145,7 +144,6 @@ def train(date_: dt.date,
     )
 
     model = Returns1DCNN().to(device)
-    print(f"Model initialized with {sum(p.numel() for p in model.parameters())} parameters")
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
@@ -161,14 +159,13 @@ def train(date_: dt.date,
     epoch_train_losses = []  # Average training loss per epoch
     epoch_val_losses = []    # Average validation loss per epoch
 
-    print(f"\nStarting training for up to {max_epochs} epochs...")
     for epoch in range(max_epochs):
         # Training phase
         model.train()
         train_loss = 0.0
         train_batches = 0
 
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{max_epochs} [Train]")
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{max_epochs} [Train]", disable=not logging)
         for batch_X, batch_y in pbar:
             batch_X = batch_X.to(device)
             batch_y = batch_y.to(device)
@@ -194,7 +191,7 @@ def train(date_: dt.date,
         val_batches = 0
 
         with torch.no_grad():
-            pbar = tqdm(val_loader, desc=f"Epoch {epoch+1}/{max_epochs} [Val]  ")
+            pbar = tqdm(val_loader, desc=f"Epoch {epoch+1}/{max_epochs} [Val]  ", disable=not logging)
             for batch_X, batch_y in pbar:
                 batch_X = batch_X.to(device)
                 batch_y = batch_y.to(device)
@@ -227,20 +224,23 @@ def train(date_: dt.date,
                 'train_loss': avg_train_loss,
                 'val_loss': avg_val_loss,
             }, checkpoint_path)
-            print(f"✓ Saved new best model to {checkpoint_path}")
+            if logging:
+                print(f"✓ Saved new best model to {checkpoint_path}")
         else:
             epochs_without_improvement += 1
-            print(f"  No improvement for {epochs_without_improvement} epoch(s)")
+            if logging:
+                print(f"  No improvement for {epochs_without_improvement} epoch(s)")
 
             # Early stopping check
             if epochs_without_improvement >= early_stopping_patience:
-                print(f"\n⚠ Early stopping triggered after {epoch+1} epochs")
-                print(f"  Best validation loss: {best_val_loss:.6f} (at epoch {best_epoch})")
+                if logging:
+                    print(f"\n⚠ Early stopping triggered after {epoch+1} epochs")
+                    print(f"  Best validation loss: {best_val_loss:.6f} (at epoch {best_epoch})")
                 break
-
-    if epochs_without_improvement < early_stopping_patience:
-        print(f"\nTraining complete! Finished all {max_epochs} epochs")
-    print(f"Best validation loss: {best_val_loss:.6f} (at epoch {best_epoch})")
+    if logging:
+        if epochs_without_improvement < early_stopping_patience:
+            print(f"\nTraining complete! Finished all {max_epochs} epochs")
+        print(f"Best validation loss: {best_val_loss:.6f} (at epoch {best_epoch})")
 
     # Return model and all loss history
     loss_history = {
